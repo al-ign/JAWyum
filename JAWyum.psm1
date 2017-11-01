@@ -9,6 +9,7 @@ function Invoke-YumCommand {
     [switch]$CacheOnly,
     [switch]$Confirm = $false,
     [switch]$AsObject,
+    [switch]$Quiet,
     [parameter(Mandatory=$true, ParameterSetName="InvocationObject")]
     [Hashtable]$InvocationObject
     )
@@ -20,6 +21,8 @@ function Invoke-YumCommand {
             Command = $Command
             PackageList = $PackageList
             CacheOnly = $CacheOnly
+            Confirm = $Confirm
+            Options = [string]''
             }
         }
  
@@ -28,70 +31,85 @@ function Invoke-YumCommand {
             }
         }#end switch
 
-    if (-not $InvocationObject['Confirm'].ToBool() ) {
+    if (-not $InvocationObject['Confirm'] ) {
                 $Options += "--assumeyes "
                 }
-    [string]$sYumInvoke = "yum "+ $Options.Trim() +" "+ $InvocationObject.Command +" "+ $InvocationObject.Packagelist
+    [string]$sYumInvoke = "yum "+ $Options +" "+ $InvocationObject.Command +" "+ $InvocationObject.Packagelist
 
     "Invoking $($sYumInvoke)" | Write-Verbose
-        
-    $InvokeResult = Invoke-Expression $sYumInvoke
-    "Checking LASTEXITCODE" | Write-Debug
-    if ($LASTEXITCODE -ne 0) {
-        'Something awful happened, examine stderr output, LASTEXITCODE was ' + $LASTEXITCODE | Write-Verbose
-        Write-Error -Message $InvokeResult 
-        } 
-    else {
-        if ($InvocationObject['AsObject']) {
-            "Invocation was requested to output as object, calling parser" | Write-Debug
-            $InvokeResult | Parse-YumOutput
-            }
-            else {
-            $InvokeResult
-            }
+    
+    $CLIOutput = Invoke-Expression $sYumInvoke
+  
+    $YumOutput = @{
+        Output = $CLIOutput
+        LastExitCode = $LASTEXITCODE
         }
+     
+    $YumOutput
+
      
 }#end invoke-yumcommand
  
 
-
-function Parse-YumOutput {
-param ($YumOutput)
-    $YumOutput | % `
-        {
-        if ($_ -match "(^[\S][^ ]+)(?:\s+)([\S][^ ]+)(?:\s+)([\S]+[ ]*$)")
+filter  Parse-YumOutput {
+   
+        if ($_ -match "(^[\S]+\.[\S]+[^ ]+)(?:\s+)([\S][^ ]+)(?:\s+)(@)*([\S]+[ ]*$)")
             {
-            $oPackage = "" | select Name, Version, Repo, @{N='Installed';E={$false}}
-            $oPackage.name = $Matches[1]
-            $oPackage.version = $Matches[2]
-            $oPackage.repo = $Matches[3]
-            if (($Matches[3])[0] -eq '@') { 
-                $oPackage.Installed = $true
-                $oPackage.repo = ($oPackage.repo).Substring(1,($oPackage.repo).Length -1 )
-                }
-            $oPackage
+            "" | select `
+            @{N='Name'; E={$Matches[1]}},
+            @{N='Version'; E={$Matches[2]}},
+            @{N='Repo'; E={$Matches[4]}},
+            @{N='Installed'; E= {
+                if ($Matches[3]) { 
+                    $true
+                    }
+                    else {
+                    $false
+                    }
+                    }#end E
+                }#end @
             } #end if
-        } #end %
+       
 } #end function
 
-
 function Get-YumPackage {
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName="None")]
 param (
     [Parameter(Mandatory=$false,ValueFromPipeline=$True, ValueFromRemainingArguments=$true)]
     [string[]]$PackageList,
-    [switch]$CacheOnly,
-    [switch]$Confirm = $false,
-    [switch]$AsObject
+    [parameter(Mandatory=$false, ParameterSetName="Installed")]
+    [switch]$Installed,
+    [parameter(Mandatory=$false, ParameterSetName="Updates")]
+    [switch]$Updates,
+    [parameter(Mandatory=$false, ParameterSetName="Available")]
+    [switch]$Available,
+    [switch]$CacheOnly
     )
+    $Command = 'list'
+    if ($PSCmdlet.ParameterSetName -eq 'Installed') {
+        $Command = 'list installed' }
+    if ($PSCmdlet.ParameterSetName -eq 'Updates') {
+        $Command = 'list updates' }
+    if ($PSCmdlet.ParameterSetName -eq 'Available') {
+        $Command = 'list available' }
+ 
     $InvocationObject = @{
         AsObject = $AsObject
-        Command = "list"
+        Command = $Command
         PackageList = $PackageList
         CacheOnly = $CacheOnly
-        Confirm = $Confirm
+        Confirm = $false
         }
-    Invoke-YumCommand -InvocationObject $InvocationObject  
+    
+    $Invoke = Invoke-YumCommand -InvocationObject $InvocationObject  
+    
+    if ($invoke.LastExitCode -eq 0) {
+        $Invoke.Output | Write-Debug
+        $Invoke.Output | Parse-YumOutput
+        }
+        else {
+        $invoke.Output
+        }
 } #end get package
 
 
