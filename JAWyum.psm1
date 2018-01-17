@@ -38,8 +38,8 @@ function Invoke-YumCommand {
 
     "Invoking $($sYumInvoke)" | Write-Verbose
     
-    $CLIOutput = Invoke-Expression $sYumInvoke
-  
+    Invoke-Expression $sYumInvoke | Tee-object -Variable CLIOutput 
+
     $YumOutput = @{
         Output = $CLIOutput
         LastExitCode = $LASTEXITCODE
