@@ -37,12 +37,17 @@ function Invoke-YumCommand {
     [string]$sYumInvoke = "yum "+ $Options +" "+ $InvocationObject.Command +" "+ $InvocationObject.Packagelist
 
     "Invoking $($sYumInvoke)" | Write-Verbose
+<<<<<<< HEAD
     if ($Quiet) {
         $CLIOutput = Invoke-Expression $sYumInvoke 
         }
         else {
         Invoke-Expression $sYumInvoke | Tee-object -Variable CLIOutput 
         }
+=======
+    
+    Invoke-Expression $sYumInvoke | Tee-object -Variable CLIOutput 
+>>>>>>> 1d25b5a5df726b5d7fbeaf4f1c4600f990ac1f0b
 
     $YumOutput = @{
         Output = $CLIOutput
