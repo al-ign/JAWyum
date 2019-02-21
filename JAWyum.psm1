@@ -37,9 +37,13 @@ function Invoke-YumCommand {
     [string]$sYumInvoke = "yum "+ $Options +" "+ $InvocationObject.Command +" "+ $InvocationObject.Packagelist
 
     "Invoking $($sYumInvoke)" | Write-Verbose
-    
-    $CLIOutput = Invoke-Expression $sYumInvoke
-  
+    if ($Quiet) {
+        $CLIOutput = Invoke-Expression $sYumInvoke 
+        }
+        else {
+        Invoke-Expression $sYumInvoke | Tee-object -Variable CLIOutput 
+        }
+
     $YumOutput = @{
         Output = $CLIOutput
         LastExitCode = $LASTEXITCODE
